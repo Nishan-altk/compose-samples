@@ -1,0 +1,217 @@
+// MainActivity.kt
+package com.example.cardriverrace
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import kotlin.random.Random
+
+// ---------- Game Logic: Car Classes ----------
+
+// Base Car class and subclasses
+open class Car(
+    var name: String,
+    var speed: Int,
+    var color: String,
+    var tyreType: String,
+    var windShieldColor: String
+) {
+    var distanceCovered = 0
+    var coinsCollected = 0
+    var level = 1
+    var boosters = 3 // Each car starts with 3 boosters
+
+    open fun move() {
+        var actualSpeed = speed
+        if (boosters > 0 && Random.nextInt(0, 5) == 0) { // 20% chance to use a booster
+            actualSpeed += 10
+            boosters--
+        }
+        distanceCovered += Random.nextInt(actualSpeed / 2, actualSpeed)
+        coinsCollected += Random.nextInt(0, 5)
+    }
+}
+
+class Thar(name: String, speed: Int, color: String, tyreType: String, windShieldColor: String) :
+    Car(name, speed, color, tyreType, windShieldColor)
+
+class Jeep(name: String, speed: Int, color: String, tyreType: String, windShieldColor: String) :
+    Car(name, speed, color, tyreType, windShieldColor)
+
+class Bus(name: String, speed: Int, color: String, tyreType: String, windShieldColor: String) :
+    Car(name, speed, color, tyreType, windShieldColor) {
+    override fun move() {
+        distanceCovered += Random.nextInt(speed / 3, speed / 2)
+        coinsCollected += Random.nextInt(1, 6)
+    }
+}
+
+class Ferrari(name: String, speed: Int, color: String, tyreType: String, windShieldColor: String) :
+    Car(name, speed, color, tyreType, windShieldColor) {
+    override fun move() {
+        var actualSpeed = speed
+        if (boosters > 0 && Random.nextInt(0, 4) == 0) { // 25% chance for booster
+            actualSpeed += 15
+            boosters--
+        }
+        distanceCovered += Random.nextInt(actualSpeed / 2, actualSpeed + 5)
+        coinsCollected += Random.nextInt(0, 6)
+    }
+}
+
+class Bugatti(name: String, speed: Int, color: String, tyreType: String, windShieldColor: String) :
+    Car(name, speed, color, tyreType, windShieldColor) {
+    override fun move() {
+        var actualSpeed = speed
+        if (boosters > 0 && Random.nextInt(0, 6) == 0) { // approx 17% chance
+            actualSpeed += 20
+            boosters--
+        }
+        distanceCovered += Random.nextInt(actualSpeed / 2, actualSpeed)
+        coinsCollected += Random.nextInt(1, 7)
+    }
+}
+
+// ---------- Android UI using Jetpack Compose ----------
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Set the game title in the app bar (optional)
+        setContent {
+            RaceGameApp()
+        }
+    }
+}
+
+@Composable
+fun RaceGameApp() {
+    // Screen navigation state: "selection" or "race"
+    var currentScreen by remember { mutableStateOf("selection") }
+    var selectedCar by remember { mutableStateOf<Car?>(null) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(title = { Text("Car Driver Race") })
+        }
+    ) {
+        when (currentScreen) {
+            "selection" -> CarSelectionScreen { car ->
+                selectedCar = car
+                currentScreen = "race"
+            }
+            "race" -> selectedCar?.let { RaceScreen(it) }
+        }
+    }
+}
+
+@Composable
+fun CarSelectionScreen(onCarSelected: (Car) -> Unit) {
+    var playerName by remember { mutableStateOf("Player") }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("Car Driver Race", style = MaterialTheme.typography.h4)
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("Enter your name:")
+        OutlinedTextField(
+            value = playerName,
+            onValueChange = { playerName = it },
+            label = { Text("Name") }
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("Select Your Car", style = MaterialTheme.typography.h6)
+        Spacer(modifier = Modifier.height(16.dp))
+        // Car selection buttons
+        Button(onClick = {
+            val car = Thar(playerName, Random.nextInt(15, 25), "Black", "Off-road", "Tinted")
+            onCarSelected(car)
+        }) {
+            Text("Thar")
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(onClick = {
+            val car = Jeep(playerName, Random.nextInt(12, 22), "Green", "All-terrain", "Clear")
+            onCarSelected(car)
+        }) {
+            Text("Jeep")
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(onClick = {
+            val car = Bus(playerName, Random.nextInt(8, 18), "Yellow", "Heavy-duty", "Large")
+            onCarSelected(car)
+        }) {
+            Text("Bus")
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(onClick = {
+            val car = Ferrari(playerName, Random.nextInt(20, 30), "Red", "Sport", "Sleek")
+            onCarSelected(car)
+        }) {
+            Text("Ferrari")
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(onClick = {
+            val car = Bugatti(playerName, Random.nextInt(25, 35), "Blue", "Racing", "Carbon Fiber")
+            onCarSelected(car)
+        }) {
+            Text("Bugatti")
+        }
+    }
+}
+
+@Composable
+fun RaceScreen(car: Car) {
+    var distance by remember { mutableStateOf(car.distanceCovered) }
+    var coins by remember { mutableStateOf(car.coinsCollected) }
+    var boosters by remember { mutableStateOf(car.boosters) }
+    var level by remember { mutableStateOf(car.level) }
+    var raceFinished by remember { mutableStateOf(false) }
+
+    // Launch a coroutine to update game state
+    LaunchedEffect(key1 = car) {
+        while (car.distanceCovered < 10000) {
+            delay(1000) // Update every second
+            car.move()
+            distance = car.distanceCovered
+            coins = car.coinsCollected
+            boosters = car.boosters
+            level = car.level
+        }
+        raceFinished = true
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        if (!raceFinished) {
+            Text("Race in Progress", style = MaterialTheme.typography.h5)
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Distance: $distance meters")
+            Text("Coins: $coins")
+            Text("Boosters: $boosters")
+            Text("Level: $level")
+        } else {
+            Text("Race Finished!", style = MaterialTheme.typography.h4)
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Final Distance: $distance meters")
+            Text("Final Coins: $coins")
+            Text("Final Level: $level")
+        }
+    }
+}
